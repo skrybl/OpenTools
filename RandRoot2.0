@@ -1,0 +1,198 @@
+
+
+
+
+metaxploit = include_lib("/lib/metaxploit.so")
+if not metaxploit then
+    metaxploit = include_lib(current_path + "/metaxploit.so")
+end if
+if not metaxploit then exit("<color=#ef233c>get metaxploit nerd")
+
+crypto = include_lib("/lib/crypto.so")
+if not crypto then
+    crypto = include_lib(current_path + "/crypto.so")
+end if
+if not crypto then exit("<color=#ef233c>get crypto nerd")
+
+getRandomIp=function()
+	octets=[]
+	for i in range(0,3)
+		if i == 0 then octets.push(ceil(rnd*223)) else octets.push(floor(rnd*256))
+	end for
+	ip = octets.join(".")
+	ip = str(ip)
+	if is_valid_ip(ip) and not is_lan_ip(ip) then
+		return ip
+		else
+		getRandomIp()
+	end if
+end function
+
+moveIt = function(s)
+    program = get_shell.host_computer.File(program_path)
+	metaxploit = get_shell.host_computer.File(current_path + "/metaxploit.so")
+	crypto = get_shell.host_computer.File(current_path + "/crypto.so")
+    program.chmod("o+rx")
+	metaxploit.chmod("o+rx")
+	crypto.chmod("o+rx")
+    get_shell.scp(program_path, "/home/guest", s)
+	get_shell.scp(current_path + "/metaxploit.so", "/home/guest", s)
+	get_shell.scp(current_path + "/crypto.so", "/home/guest", s)
+    program.chmod("o-rx")
+	metaxploit.chmod("o-rx")
+	crypto.chmod("o-rx")
+end function
+
+runIt = function(s, p)
+    a = program_path.split("/")[-1]
+    s.launch("/home/guest/" + a, "fuckTheRouter " + p)
+end function
+
+hackEm = function(sh, ps, comp, result)
+	
+	corrupt=function(sin)
+		out={}
+		out.bool=2
+	
+		comp.touch("/var","system.bak")
+		log=comp.File("/var/system.log")
+		p=null
+		if log then
+			p=log.permissions[1:]
+			if not log.has_permission("w") then return
+			log.delete
+		end if
+	
+		bak=comp.File("/var/system.bak")
+		if bak then
+			bak.set_content("6ucjoTfHxbZo5VX4851EcjqSyeL7dceE7QqQMJV2KorLX9XlN7V9CPjz7ZK4sOFmMauqoRKpMLbrbJa9ZUXr9gWJrXicJTbFoX8IGiWwt8NPbpXAFGafrZ0D2R2ehxvHGEkCIefuCCBtc3MwDVv4R6wFCPpU0GqDKuBBEtQjZypQwfFMzaaKVxAshNq6z7hHU5r45oiCOIKDCmawIVhdZtgjBa9Hk0VNn3X5GFx7gJy73kpzSAXJB6CfwhUfjFrY1tjuH4YNQJ1qtQc6BGaUOElc22EarqbTgGJoYY3cL1PTnW6bQn0rQqkeOnlijWMbQQeEmJ8nGw8h5YdL5g37wcnVUuP4BNmHQQamsyGLcpssSaOp5J9QMZRWx7ngKC7QVUgNEO2TIOuLTlBLqLsmznLja7zvyhdwzePcfL1ldspVuy7PK1VbYtIYTRUzWrsdizPtIRjHWgRbI4HLnvk3ZotGmEsmvjYyPkKV1oValCZbllwryxL90vblSUET8VBb")
+			bak.move("/var","system.log")
+		end if
+		wait(.2)
+		log=comp.File("/var/system.log")
+		if log then
+			if log.size.to_int < 1000 then
+				log.chmod("u-wrx")
+				log.chmod("g-wrx")
+				log.chmod("o-wrx")
+				if p then
+					up=p[:3]
+					gp=p[3:-3]
+					op=p[-3:]
+				else
+					p=comp.File("/var").permissions[1:]
+					up=p[:3]
+					gp=p[3:-3]
+					op=p[-3:]
+				end if
+				log.chmod("u+"+up)
+				log.chmod("g+"+gp)
+				log.chmod("o+"+op)
+			else
+				return
+			end if
+		end if
+	
+		return out
+	end function
+	
+	GetPassword = function(userPass)
+   		password = crypto.decipher(userPass)
+   		return password
+	end function
+
+	
+	print("connecting?")
+	
+	userPass = ps.split(":")
+	password = GetPassword([1])
+	file = comp.File("/etc/passwd")
+	passwd = file.get_content
+	
+	print("got the password file")
+	print(file.get_content)
+	
+	lines = file.get_content.split("\n")
+	
+	print("ok so rn, im gonna try this one")
+	print(lines[0])
+
+	
+	userPass = lines[0].split(":")
+	print(userPass[1])
+	print("huh ^")
+    if userPass[0] == "root" then
+    pass = GetPassword(userPass[1])
+	else
+		exit("rootn't")
+	end if
+
+	print(pass + " is cool")
+	password = pass
+	
+	print("yeah, the password is " + password)
+	get_shell("root", password)
+	corrupt(0)
+	get_shell("root", password).start_terminal
+	exit
+	
+end function
+
+doIt = function()
+	ip = getRandomIp()
+	router = get_router(ip)
+	ports = router.used_ports
+	if ports.len == 0 then
+		ip = getRandomIp()
+		doIt()
+end if
+if params.len == 2 and params[0] == "fuckTheRouter" then
+    hackEm(get_shell, params[1], get_shell.host_computer, get_shell)
+    exit
+end if
+if ports.len == 0 then break
+	portNum = []
+	portType = []
+	for port in ports
+		if not port.is_closed then portNum.push(port.port_number) 
+		if not port.is_closed then portType.push(router.port_info(port))
+	end for
+
+	for i in portNum
+		net_session = metaxploit.net_use(ip, i)
+		metaLib = net_session.dump_lib
+	
+		shell = null
+		pass = null 
+		memory = metaxploit.scan(metaLib)
+	
+		for mem in memory
+    		address = metaxploit.scan_address(metaLib, mem).split("Unsafe check: ")
+    		for add in address
+        		if add == address[0] then continue
+        		value = add[add.indexOf("<b>")+3:add.indexOf("</b>")]
+        		value = value.replace("\n", "")
+        		result = metaLib.overflow(mem, value)
+        
+        		if typeof(result) != "shell" and typeof(result) != "computer" then continue
+        		if typeof(result) == "shell" then shell = result
+        		if typeof(result) == "shell" then comp = result.host_computer
+        		if typeof(result) == "computer" then comp = result
+        
+        		file = comp.File("/etc/passwd")
+        		if not file then continue
+        		cont = file.get_content
+    	   		if not cont then continue 
+ 	      		pass = cont.split("\n")[0]
+ 	       		if shell then
+                    moveIt(shell)
+                    runIt(shell, pass)
+                    // hackEm(shell, pass, comp, result)
+                end if
+	    	end for
+	end for
+end for
+
+end function
+
+doIt()
