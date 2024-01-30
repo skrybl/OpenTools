@@ -1,0 +1,94 @@
+// import librarie
+metaxploit = include_lib("/lib/metaxploit.so")
+if not metaxploit then
+    currentPath = current_path 
+    metaxploit = include_lib(current_path + "/metaxploit.so")
+end if
+if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")
+
+crypto = include_lib("/lib/crypto.so")
+if not crypto then
+    currentPath = current_path 
+    crypto = include_lib(current_path + "/crypto.so")
+end if
+if not crypto then exit("Error: Can't find crypto library in the /lib path or the current folder")
+
+gen_ssh = function()
+
+// make an ip
+getRandomIp=function()
+	octets=[]
+	for i in range(0,3)
+		if i == 0 then octets.push(ceil(rnd*223)) else octets.push(floor(rnd*256))
+	end for
+	ip = octets.join(".")
+	ip = str(ip)
+	if is_valid_ip(ip) and not is_lan_ip(ip) then
+		return ip
+		else
+		getRandomIp()
+	end if
+end function
+
+// keep looking through ips for the port 22
+checkip = function()
+
+	ip = getRandomIp()
+	router = get_router(ip)
+	
+	if router == null then return
+		Ports = router.used_ports
+	if Ports == null then return
+	ports = []
+	for port in Ports
+		ports.push(port.port_number)
+	end for
+	if ports.indexOf(22) == null then return
+	return ip
+end function
+
+ip = "" 
+while not is_valid_ip(ip)
+ ip = checkip()
+end while
+
+hack = function()
+
+net_session = metaxploit.net_use(ip, 22)
+if not net_session then exit("Error: can't connect to net session")
+metaLib = net_session.dump_lib
+
+shell = null
+pass = null 
+memory = metaxploit.scan(metaLib)
+for mem in memory
+    address = metaxploit.scan_address(metaLib, mem).split("Unsafe check: ")
+    for add in address
+        
+        value = add[add.indexOf("<b>")+3:add.indexOf("</b>")]
+        value = value.replace("\n", "")
+        result = metaLib.overflow(mem, value)
+        
+        if typeof(result) != "shell" and typeof(result) != "computer" then continue
+        if typeof(result) == "shell" then shell = result
+        if typeof(result) == "shell" then comp = result.host_computer
+        if typeof(result) == "computer" then comp = result
+        
+        file = comp.File("/etc/passwd")
+        if not file then continue
+        cont = file.get_content
+        if not cont then continue 
+        passwd = cont.split("\n")[0]
+        split_pass = passwd.split(":")
+		password = crypto.decipher(split_pass[1])
+		return "ssh root@" + password + " " + ip
+    end for
+end for
+end function
+
+get_shell.host_computer.touch(current_path,"ssh.db")
+file = get_shell.host_computer.File(current_path + "/ssh.db")
+file.set_content(file.get_content + " == " + hack())
+gen_ssh()
+end function
+gen_ssh()
