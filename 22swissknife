@@ -101,9 +101,9 @@ rshell_pc = function()
 
     scp(get_shell, "/home/guest/crypto.so", "/home/guest", shell)
     scp(get_shell, "/home/guest/metaxploit.so", "/home/guest", shell)
-    scp(get_shell, "/home/guest/rshell", "/home/guest", shell)
+    scp(get_shell, "/home/guest/prog", "/home/guest", shell)
 
-    shell.launch("/home/guest/rshell")
+    shell.launch("/home/guest/prog")
 
 
     return rshell_pc()
